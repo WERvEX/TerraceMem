@@ -1,0 +1,41 @@
+"""API-first LLM, Embedding, and Reranker provider abstractions."""
+
+from terracemem.llm.providers import (
+    DeterministicHashEmbeddingProvider,
+    EmbeddingProvider,
+    HTTPRerankerProvider,
+    LexicalOverlapReranker,
+    LLMProvider,
+    LLMTextResult,
+    LLMUsage,
+    OpenAICompatibleEmbeddingProvider,
+    OpenAICompatibleLLMProvider,
+    PassthroughReranker,
+    RerankerProvider,
+    StructuredLLMResult,
+    cosine_similarity,
+    create_default_embedding_provider,
+    create_default_llm_provider,
+    create_default_reranker_provider,
+    format_pg_halfvec,
+)
+
+__all__ = [
+    "DeterministicHashEmbeddingProvider",
+    "EmbeddingProvider",
+    "HTTPRerankerProvider",
+    "LLMProvider",
+    "LLMTextResult",
+    "LLMUsage",
+    "LexicalOverlapReranker",
+    "OpenAICompatibleEmbeddingProvider",
+    "OpenAICompatibleLLMProvider",
+    "PassthroughReranker",
+    "RerankerProvider",
+    "StructuredLLMResult",
+    "cosine_similarity",
+    "create_default_embedding_provider",
+    "create_default_llm_provider",
+    "create_default_reranker_provider",
+    "format_pg_halfvec",
+]

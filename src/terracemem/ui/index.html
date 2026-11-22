@@ -1,0 +1,739 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>TerraceMem Inspector</title>
+  <style>
+    :root {
+      --bg: #0b1020;
+      --panel: #131b31;
+      --panel-2: #0e1527;
+      --border: #243152;
+      --text: #e6edf7;
+      --muted: #93a4c7;
+      --accent: #38bdf8;
+      --ok: #34d399;
+      --warn: #fbbf24;
+      --err: #f87171;
+      --purple: #a78bfa;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.5;
+    }
+    header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 14px 24px;
+      border-bottom: 1px solid var(--border);
+      background: var(--panel);
+      flex-wrap: wrap;
+      gap: 10px;
+    }
+    .brand { font-weight: 700; font-size: 18px; letter-spacing: 0.3px; }
+    .brand span { color: var(--accent); }
+    .badge {
+      display: inline-block;
+      padding: 3px 10px;
+      border-radius: 999px;
+      font-size: 12px;
+      border: 1px solid var(--border);
+      color: var(--ok);
+      margin-left: 8px;
+      background: var(--panel-2);
+    }
+    .badge.warn { color: var(--warn); }
+    .badge.err { color: var(--err); }
+    .badge.info { color: var(--accent); }
+    main { max-width: 1280px; margin: 20px auto; padding: 0 20px 40px; }
+    .tabs { display: flex; gap: 10px; margin-bottom: 18px; flex-wrap: wrap; }
+    .tab {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      color: var(--muted);
+      padding: 9px 15px;
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 13px;
+      font-weight: 500;
+    }
+    .tab.active { color: var(--text); border-color: var(--accent); background: #182340; }
+    .tab-pane { display: none; }
+    .tab-pane.active { display: block; }
+    .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(360px, 1fr)); gap: 16px; }
+    .card {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 18px;
+      margin-bottom: 16px;
+    }
+    h2 { margin: 0 0 10px; font-size: 15px; color: var(--accent); }
+    h3 { margin: 12px 0 8px; font-size: 13px; color: var(--text); }
+    .row { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; margin-bottom: 10px; }
+    label { font-size: 12px; color: var(--muted); display: flex; flex-direction: column; gap: 4px; }
+    input, select, textarea {
+      background: #080c17;
+      color: var(--text);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 8px 10px;
+      font-size: 13px;
+    }
+    input, select { min-width: 140px; }
+    textarea {
+      width: 100%;
+      min-height: 120px;
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    }
+    button.primary {
+      background: var(--accent);
+      color: #06131f;
+      border: none;
+      border-radius: 8px;
+      padding: 8px 14px;
+      font-weight: 600;
+      cursor: pointer;
+      font-size: 13px;
+    }
+    button.secondary {
+      background: var(--panel-2);
+      color: var(--text);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 7px 12px;
+      cursor: pointer;
+      font-size: 12px;
+    }
+    button.danger {
+      background: rgba(248, 113, 113, 0.14);
+      color: var(--err);
+      border: 1px solid rgba(248, 113, 113, 0.4);
+      border-radius: 6px;
+      padding: 4px 9px;
+      cursor: pointer;
+      font-size: 12px;
+    }
+    pre {
+      background: #080c17;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 12px;
+      overflow: auto;
+      font-size: 12px;
+      color: #cbd5e1;
+      max-height: 340px;
+      margin: 8px 0 0;
+    }
+    .muted { color: var(--muted); font-size: 12px; }
+    .item-list { display: flex; flex-direction: column; gap: 8px; max-height: 320px; overflow: auto; }
+    .list-row {
+      background: var(--panel-2);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 10px 12px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 10px;
+      cursor: pointer;
+    }
+    .list-row:hover { border-color: var(--accent); }
+    .waterfall-row {
+      display: grid;
+      grid-template-columns: 200px 1fr 90px;
+      gap: 10px;
+      align-items: center;
+      font-size: 12px;
+      padding: 5px 0;
+      border-bottom: 1px solid rgba(36, 49, 82, 0.5);
+    }
+    .bar-track { background: #080c17; border-radius: 4px; height: 14px; overflow: hidden; }
+    .bar-fill { background: linear-gradient(90deg, var(--accent), var(--purple)); height: 100%; min-width: 3px; }
+    table { width: 100%; border-collapse: collapse; font-size: 12px; margin-top: 8px; }
+    th, td {
+      border-bottom: 1px solid var(--border);
+      padding: 7px 8px;
+      text-align: left;
+    }
+    th { color: var(--accent); font-weight: 600; }
+    .pill-stream { display: flex; gap: 6px; flex-wrap: wrap; margin: 8px 0; }
+    .mem-card {
+      border: 1px solid var(--border);
+      background: var(--panel-2);
+      border-radius: 8px;
+      padding: 10px 12px;
+      margin-bottom: 8px;
+    }
+    .mem-card.superseded { opacity: 0.72; border-style: dashed; }
+  </style>
+</head>
+<body>
+  <header>
+    <div>
+      <span class="brand">Terrace<span>Mem</span> Inspector</span>
+      <span id="status-badge" class="badge">Connecting...</span>
+      <span id="mode-badge" class="badge info">...</span>
+    </div>
+    <div class="muted">Unified PostgreSQL · Agentic RAG · Bi-temporal Tiered Memory</div>
+  </header>
+
+  <main>
+    <div class="tabs">
+      <button class="tab active" onclick="switchTab(0)">1. Engine &amp; Document Outline</button>
+      <button class="tab" onclick="switchTab(1)">2. RAG Playground &amp; Trace Waterfall</button>
+      <button class="tab" onclick="switchTab(2)">3. Bi-temporal Memory Timeline</button>
+      <button class="tab" onclick="switchTab(3)">4. Eval Ablation Dashboard</button>
+    </div>
+
+    <!-- TAB 1: Engine & Documents -->
+    <section class="tab-pane active" id="pane-0">
+      <div class="grid">
+        <div class="card">
+          <h2>Engine Runtime Configuration</h2>
+          <p class="muted">Live output from <code>GET /api/v1/info</code> (Feature Flags &amp; Budgets).</p>
+          <pre id="engine-info">Loading...</pre>
+        </div>
+
+        <div class="card">
+          <h2>Ingest Markdown Document</h2>
+          <div class="row">
+            <label>Title <input id="ing-title" value="TerraceMem Spec" /></label>
+            <label>External Key <input id="ing-key" value="terracemem-spec" /></label>
+            <label>Tenant <input id="ing-tenant" value="default" /></label>
+            <label>Namespace <input id="ing-ns" value="default" /></label>
+          </div>
+          <textarea id="ing-content"># TerraceMem Spec
+
+## 1. Storage Layer
+ParadeDB pg_search provides Rust Tantivy BM25 with built-in jieba Chinese tokenization and Fast Fields pushdown.
+
+## 2. Vector Iterative Scan
+pgvector 0.8 enables halfvec(1024) HNSW indexes with `SET LOCAL hnsw.iterative_scan = 'relaxed_order'`.
+
+## 3. Bi-temporal Memory
+Valid time (`valid_from`, `valid_to`) and transaction time (`recorded_at`, `invalidated_at`, `superseded_by`) allow non-destructive `as_of` auditing.</textarea>
+          <div class="row" style="margin-top:8px;">
+            <label style="flex-direction:row;align-items:center;gap:6px;">
+              <input type="checkbox" id="ing-enrich" checked style="min-width:auto;" />
+              Write-time Enrichment
+            </label>
+            <button class="primary" onclick="ingestDoc()">Ingest Document</button>
+            <button class="secondary" onclick="loadDocs()">Refresh List</button>
+          </div>
+          <pre id="ing-result">Ready to ingest.</pre>
+        </div>
+      </div>
+
+      <div class="grid">
+        <div class="card">
+          <h2>Document Library &amp; Hierarchical Outline</h2>
+          <div id="doc-list" class="item-list"><div class="muted">No documents loaded yet.</div></div>
+          <h3>Selected Document Outline</h3>
+          <pre id="doc-outline">Click any document above to inspect its section tree, summaries &amp; keywords.</pre>
+        </div>
+
+        <div class="card">
+          <h2>Structure-Aware Markdown Parser Preview</h2>
+          <p class="muted">Test hierarchical section splitting via <code>POST /api/v1/parse-preview</code>.</p>
+          <textarea id="md-input"># TerraceMem Architecture
+
+## 1. Storage Layer
+PostgreSQL 17 with pgvector 0.8 (`halfvec`) and ParadeDB BM25.
+
+```sql
+SET LOCAL hnsw.iterative_scan = 'relaxed_order';
+```</textarea>
+          <button class="primary" style="margin-top:8px;" onclick="runPreview()">Parse Document Tree</button>
+          <pre id="parse-output">Click "Parse Document Tree" to inspect sections &amp; contextual chunks.</pre>
+        </div>
+      </div>
+    </section>
+
+    <!-- TAB 2: RAG Playground & Trace Waterfall -->
+    <section class="tab-pane" id="pane-1">
+      <div class="card">
+        <h2>Agentic RAG Playground (SSE Live Stream)</h2>
+        <div class="row">
+          <label style="flex:1;min-width:260px;">Question
+            <input id="rag-question" value="How does TerraceMem avoid post-filtering starvation in HNSW?" />
+          </label>
+          <label>Tenant <input id="rag-tenant" value="default" /></label>
+          <label>Namespace <input id="rag-ns" value="default" /></label>
+          <label>User ID (optional) <input id="rag-user" placeholder="e.g. alice" /></label>
+          <label>Mode
+            <select id="rag-mode">
+              <option value="hybrid">hybrid</option>
+              <option value="dense_only">dense_only</option>
+              <option value="lexical_only">lexical_only</option>
+            </select>
+          </label>
+          <label style="flex-direction:row;align-items:center;gap:6px;margin-top:16px;">
+            <input type="checkbox" id="rag-crag" checked style="min-width:auto;" />
+            CRAG Gate
+          </label>
+        </div>
+        <div class="row">
+          <button class="primary" onclick="askRagStream()">Ask (Live SSE Stream)</button>
+          <button class="secondary" onclick="loadTraces()">Refresh Traces</button>
+        </div>
+        <div id="rag-states" class="pill-stream"></div>
+        <div id="rag-answer-box" class="mem-card" style="display:none;"></div>
+      </div>
+
+      <div class="grid">
+        <div class="card">
+          <h2>Recent Execution Traces</h2>
+          <div id="trace-list" class="item-list"><div class="muted">No traces recorded yet.</div></div>
+        </div>
+        <div class="card">
+          <h2>Span Latency Waterfall</h2>
+          <div id="trace-waterfall" class="muted">Select a trace or run a query to inspect per-node spans.</div>
+          <pre id="trace-detail" style="display:none;"></pre>
+        </div>
+      </div>
+    </section>
+
+    <!-- TAB 3: Bi-temporal Memory Timeline -->
+    <section class="tab-pane" id="pane-2">
+      <div class="grid">
+        <div class="card">
+          <h2>Commit Memory Turn</h2>
+          <div class="row">
+            <label>User ID <input id="mem-user" value="alice" /></label>
+            <label>Tenant <input id="mem-tenant" value="default" /></label>
+            <label>Namespace <input id="mem-ns" value="default" /></label>
+          </div>
+          <textarea id="mem-content" style="min-height:80px;">We migrated our primary database to PostgreSQL [slot:project.db].</textarea>
+          <div class="row" style="margin-top:8px;">
+            <label style="flex-direction:row;align-items:center;gap:6px;">
+              <input type="checkbox" id="mem-pin" style="min-width:auto;" />
+              Pin Fact
+            </label>
+            <button class="primary" onclick="commitMemory()">Commit &amp; Resolve Conflicts</button>
+          </div>
+          <pre id="mem-commit-out">Commit a statement (e.g., with [slot:project.db]) to watch guardrail &amp; conflict resolution.</pre>
+        </div>
+
+        <div class="card">
+          <h2>Recall L1 / L2 / L3 Memory</h2>
+          <div class="row">
+            <label style="flex:1;">Query <input id="mem-recall-q" value="What database do we use?" /></label>
+            <button class="primary" style="margin-top:16px;" onclick="recallMemory()">Recall</button>
+          </div>
+          <pre id="mem-recall-out">Run Recall to see L2 episodes &amp; L3 decay-scored semantic facts.</pre>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2>Bi-temporal L3 Timeline &amp; Time Travel (<code>as_of</code>)</h2>
+        <div class="row">
+          <label>Slot Key (optional) <input id="tl-slot" placeholder="e.g. project.db" /></label>
+          <label>As-Of Timestamp (ISO-8601, optional)
+            <input id="tl-asof" placeholder="2026-11-22T12:00:00Z" style="min-width:220px;" />
+          </label>
+          <button class="primary" style="margin-top:16px;" onclick="loadTimeline()">Query Timeline</button>
+        </div>
+        <div id="tl-active" style="margin-top:10px;"></div>
+        <div id="tl-history" style="margin-top:10px;"></div>
+      </div>
+    </section>
+
+    <!-- TAB 4: Eval Ablation Dashboard -->
+    <section class="tab-pane" id="pane-3">
+      <div class="card">
+        <div class="row" style="justify-content:space-between;">
+          <div>
+            <h2>Offline Evaluation &amp; Ablation Reports</h2>
+            <p class="muted">Loaded from <code>GET /api/v1/eval-reports</code> (<code>evals/reports/*.json</code>).</p>
+          </div>
+          <button class="primary" onclick="loadEvalReports()">Reload Reports</button>
+        </div>
+        <div id="eval-container"><div class="muted">Loading evaluation reports...</div></div>
+      </div>
+    </section>
+  </main>
+
+  <script>
+    function esc(str) {
+      return String(str ?? '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;');
+    }
+
+    function switchTab(idx) {
+      document.querySelectorAll('.tab').forEach((el, i) => el.classList.toggle('active', i === idx));
+      document.querySelectorAll('.tab-pane').forEach((el, i) => el.classList.toggle('active', i === idx));
+      if (idx === 0) loadDocs();
+      if (idx === 1) loadTraces();
+      if (idx === 2) loadTimeline();
+      if (idx === 3) loadEvalReports();
+    }
+
+    async function loadInfo() {
+      try {
+        const res = await fetch('/api/v1/info');
+        const data = await res.json();
+        document.getElementById('engine-info').textContent = JSON.stringify(data, null, 2);
+        document.getElementById('status-badge').textContent = `Online v${data.version}`;
+        document.getElementById('mode-badge').textContent = `Storage: ${data.storage_mode}`;
+      } catch (err) {
+        document.getElementById('status-badge').textContent = 'Offline';
+        document.getElementById('engine-info').textContent = String(err);
+      }
+    }
+
+    async function runPreview() {
+      const md = document.getElementById('md-input').value;
+      const out = document.getElementById('parse-output');
+      out.textContent = 'Parsing...';
+      try {
+        const res = await fetch('/api/v1/parse-preview', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ title: 'Demo Doc', markdown: md, max_chunk_tokens: 200 })
+        });
+        out.textContent = JSON.stringify(await res.json(), null, 2);
+      } catch (err) {
+        out.textContent = String(err);
+      }
+    }
+
+    async function ingestDoc() {
+      const payload = {
+        title: document.getElementById('ing-title').value,
+        external_key: document.getElementById('ing-key').value,
+        tenant_id: document.getElementById('ing-tenant').value || 'default',
+        namespace: document.getElementById('ing-ns').value || 'default',
+        content: document.getElementById('ing-content').value,
+        enable_enrichment: document.getElementById('ing-enrich').checked
+      };
+      const out = document.getElementById('ing-result');
+      out.textContent = 'Ingesting...';
+      const res = await fetch('/api/v1/documents', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      out.textContent = JSON.stringify(await res.json(), null, 2);
+      await loadDocs();
+    }
+
+    async function loadDocs() {
+      const tenant = encodeURIComponent(document.getElementById('ing-tenant').value || 'default');
+      const ns = encodeURIComponent(document.getElementById('ing-ns').value || 'default');
+      const res = await fetch(`/api/v1/documents?tenant_id=${tenant}&namespace=${ns}`);
+      const data = await res.json();
+      const el = document.getElementById('doc-list');
+      if (!data.documents || data.documents.length === 0) {
+        el.innerHTML = '<div class="muted">No active documents in this scope yet.</div>';
+        return;
+      }
+      el.innerHTML = data.documents.map(d => `
+        <div class="list-row" onclick="loadOutline('${esc(d.id)}')">
+          <div>
+            <strong>${esc(d.title)}</strong>
+            <span class="badge info">v${esc(d.version)}</span>
+            <div class="muted">${esc(d.external_key)} · ${esc(d.section_count)} sections · ${esc(d.chunk_count)} chunks</div>
+          </div>
+          <button class="danger" onclick="event.stopPropagation(); deleteDoc('${esc(d.id)}')">Delete</button>
+        </div>
+      `).join('');
+    }
+
+    async function loadOutline(docId) {
+      const tenant = encodeURIComponent(document.getElementById('ing-tenant').value || 'default');
+      const ns = encodeURIComponent(document.getElementById('ing-ns').value || 'default');
+      const res = await fetch(`/api/v1/documents/${docId}/outline?tenant_id=${tenant}&namespace=${ns}`);
+      document.getElementById('doc-outline').textContent = JSON.stringify(await res.json(), null, 2);
+    }
+
+    async function deleteDoc(docId) {
+      const tenant = encodeURIComponent(document.getElementById('ing-tenant').value || 'default');
+      const ns = encodeURIComponent(document.getElementById('ing-ns').value || 'default');
+      await fetch(`/api/v1/documents/${docId}?tenant_id=${tenant}&namespace=${ns}`, { method: 'DELETE' });
+      await loadDocs();
+    }
+
+    async function askRagStream() {
+      const statesEl = document.getElementById('rag-states');
+      const boxEl = document.getElementById('rag-answer-box');
+      statesEl.innerHTML = '';
+      boxEl.style.display = 'block';
+      boxEl.innerHTML = '<div class="muted">Running Agentic RAG FSM...</div>';
+
+      const payload = {
+        question: document.getElementById('rag-question').value,
+        tenant_id: document.getElementById('rag-tenant').value || 'default',
+        namespace: document.getElementById('rag-ns').value || 'default',
+        user_id: document.getElementById('rag-user').value || null,
+        retrieval_mode: document.getElementById('rag-mode').value,
+        enable_crag: document.getElementById('rag-crag').checked
+      };
+
+      const res = await fetch('/api/v1/ask/stream', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let buf = '';
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buf += decoder.decode(value, { stream: true });
+        const blocks = buf.split('\n\n');
+        buf = blocks.pop() || '';
+        for (const block of blocks) {
+          const lines = block.split('\n');
+          let evType = 'message';
+          let dataStr = '';
+          for (const ln of lines) {
+            if (ln.startsWith('event: ')) evType = ln.slice(7).trim();
+            if (ln.startsWith('data: ')) dataStr += ln.slice(6);
+          }
+          if (!dataStr) continue;
+          const data = JSON.parse(dataStr);
+          if (evType === 'state') {
+            statesEl.innerHTML += `<span class="badge info">${esc(data.state)}</span>`;
+          } else if (evType === 'final') {
+            renderRagAnswer(data);
+            await loadTraces();
+            if (data.trace_id) await loadTraceDetail(data.trace_id);
+          }
+        }
+      }
+    }
+
+    function renderRagAnswer(data) {
+      const boxEl = document.getElementById('rag-answer-box');
+      const statusCls = data.status === 'answered' ? '' : 'warn';
+      const cites = (data.citations || []).map(c =>
+        `<li><code>${esc(c.chunk_id)}</code> — <strong>${esc(c.document_title)}</strong> (${esc((c.heading_path || []).join(' > '))})</li>`
+      ).join('');
+      const abstain = data.abstention_reason ? `<div class="muted" style="color:var(--warn);">Abstention Reason: ${esc(data.abstention_reason)}</div>` : '';
+      boxEl.innerHTML = `
+        <div><strong>Status:</strong> <span class="badge ${statusCls}">${esc(data.status)}</span>
+        <span class="muted">Retries: ${esc(data.retrieval_retries)} · Trace: <code>${esc(data.trace_id)}</code></span></div>
+        <p style="margin:8px 0;">${esc(data.answer)}</p>
+        ${abstain}
+        ${cites ? `<h3>Verified Citations</h3><ul>${cites}</ul>` : ''}
+      `;
+    }
+
+    async function loadTraces() {
+      const tenant = encodeURIComponent(document.getElementById('rag-tenant').value || 'default');
+      const res = await fetch(`/api/v1/traces?tenant_id=${tenant}&limit=20`);
+      const data = await res.json();
+      const el = document.getElementById('trace-list');
+      if (!data.traces || data.traces.length === 0) {
+        el.innerHTML = '<div class="muted">No traces yet.</div>';
+        return;
+      }
+      el.innerHTML = data.traces.map(t => `
+        <div class="list-row" onclick="loadTraceDetail('${esc(t.id)}')">
+          <div>
+            <strong>${esc((t.query_text || t.operation).slice(0, 56))}</strong>
+            <div class="muted">${esc(t.channel)} · ${esc(t.total_latency_ms)} ms · retries=${esc(t.retrieval_retries)}</div>
+          </div>
+          <span class="badge ${t.final_status === 'answered' ? '' : 'warn'}">${esc(t.final_status)}</span>
+        </div>
+      `).join('');
+    }
+
+    async function loadTraceDetail(traceId) {
+      const res = await fetch(`/api/v1/traces/${traceId}`);
+      const t = await res.json();
+      const wf = document.getElementById('trace-waterfall');
+      const pre = document.getElementById('trace-detail');
+      const maxMs = Math.max(1, ...(t.spans || []).map(s => s.latency_ms));
+      wf.innerHTML = (t.spans || []).map(s => {
+        const pct = Math.max(3, Math.round((s.latency_ms / maxMs) * 100));
+        return `
+          <div class="waterfall-row">
+            <div>${esc(s.step_order)}. <code>${esc(s.node_name)}</code></div>
+            <div class="bar-track"><div class="bar-fill" style="width:${pct}%"></div></div>
+            <div style="text-align:right;">${esc(s.latency_ms)} ms</div>
+          </div>
+        `;
+      }).join('');
+      pre.style.display = 'block';
+      pre.textContent = JSON.stringify(t, null, 2);
+    }
+
+    async function commitMemory() {
+      const payload = {
+        user_id: document.getElementById('mem-user').value || 'alice',
+        tenant_id: document.getElementById('mem-tenant').value || 'default',
+        namespace: document.getElementById('mem-ns').value || 'default',
+        content: document.getElementById('mem-content').value,
+        is_pinned: document.getElementById('mem-pin').checked,
+        sync_extract: true
+      };
+      const res = await fetch('/api/v1/memory/commit', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      document.getElementById('mem-commit-out').textContent = JSON.stringify(await res.json(), null, 2);
+      await loadTimeline();
+    }
+
+    async function recallMemory() {
+      const payload = {
+        user_id: document.getElementById('mem-user').value || 'alice',
+        tenant_id: document.getElementById('mem-tenant').value || 'default',
+        namespace: document.getElementById('mem-ns').value || 'default',
+        query: document.getElementById('mem-recall-q').value
+      };
+      const res = await fetch('/api/v1/memory/recall', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      document.getElementById('mem-recall-out').textContent = JSON.stringify(await res.json(), null, 2);
+    }
+
+    async function loadTimeline() {
+      const user = encodeURIComponent(document.getElementById('mem-user').value || 'alice');
+      const tenant = encodeURIComponent(document.getElementById('mem-tenant').value || 'default');
+      const ns = encodeURIComponent(document.getElementById('mem-ns').value || 'default');
+      const slot = document.getElementById('tl-slot').value.trim();
+      const asof = document.getElementById('tl-asof').value.trim();
+      let url = `/api/v1/memory/timeline?user_id=${user}&tenant_id=${tenant}&namespace=${ns}`;
+      if (slot) url += `&slot_key=${encodeURIComponent(slot)}`;
+      if (asof) url += `&as_of=${encodeURIComponent(asof)}`;
+
+      const res = await fetch(url);
+      const data = await res.json();
+      const activeEl = document.getElementById('tl-active');
+      const histEl = document.getElementById('tl-history');
+
+      activeEl.innerHTML = `<h3>Active Facts ${asof ? `@ ${esc(asof)}` : '(Latest)'} (${(data.active_at_as_of || []).length})</h3>` +
+        (data.active_at_as_of || []).map(renderMemCard).join('') || '<div class="muted">None</div>';
+      histEl.innerHTML = `<h3>Full Bi-temporal History (${(data.history || []).length})</h3>` +
+        (data.history || []).map(renderMemCard).join('');
+    }
+
+    function renderMemCard(m) {
+      const sup = m.superseded_by ? `<span class="badge err">Superseded by ${esc(m.superseded_by.slice(0, 8))}</span>` : `<span class="badge">Active</span>`;
+      const pin = m.is_pinned ? `<span class="badge warn">PINNED</span>` : '';
+      return `
+        <div class="mem-card ${m.superseded_by ? 'superseded' : ''}">
+          <div class="row" style="justify-content:space-between;margin-bottom:4px;">
+            <div><strong>[${esc(m.slot_key || m.memory_type)}]</strong> ${esc(m.fact_text)}</div>
+            <div>${sup}${pin}
+              <button class="secondary" onclick="togglePin('${esc(m.id)}', ${!m.is_pinned})">${m.is_pinned ? 'Unpin' : 'Pin'}</button>
+            </div>
+          </div>
+          <div class="muted">id=${esc(m.id)} · valid=[${esc(m.valid_from)} .. ${esc(m.valid_to || '∞')}] ${m.invalidation_reason ? '· reason: ' + esc(m.invalidation_reason) : ''}</div>
+        </div>
+      `;
+    }
+
+    async function togglePin(memoryId, nextPin) {
+      await fetch(`/api/v1/memory/${memoryId}/pin`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          user_id: document.getElementById('mem-user').value || 'alice',
+          tenant_id: document.getElementById('mem-tenant').value || 'default',
+          is_pinned: nextPin
+        })
+      });
+      await loadTimeline();
+    }
+
+    function renderSvgBars(rows, labelKey, valueKey, color) {
+      const width = 560;
+      const barH = 22;
+      const gap = 8;
+      const height = Math.max(40, rows.length * (barH + gap) + 12);
+      const bars = rows.map((r, idx) => {
+        const y = idx * (barH + gap) + 6;
+        const v = Math.max(0, Math.min(1, Number(r[valueKey] || 0)));
+        const w = Math.round(v * 340);
+        return `
+          <text x="4" y="${y + 15}" fill="#e6edf7" font-size="12">${esc(r[labelKey])}</text>
+          <rect x="140" y="${y + 2}" width="340" height="${barH - 4}" rx="4" fill="#080c17" />
+          <rect x="140" y="${y + 2}" width="${w}" height="${barH - 4}" rx="4" fill="${color}" />
+          <text x="490" y="${y + 15}" fill="#93a4c7" font-size="12">${(v * 100).toFixed(1)}%</text>
+        `;
+      }).join('');
+      return `<svg width="${width}" height="${height}" style="max-width:100%;">${bars}</svg>`;
+    }
+
+    async function loadEvalReports() {
+      const res = await fetch('/api/v1/eval-reports');
+      const data = await res.json();
+      const el = document.getElementById('eval-container');
+      if (!data.reports || data.reports.length === 0) {
+        el.innerHTML = '<div class="muted">No JSON reports found in evals/reports/. Run <code>uv run python evals/rag_ablation.py --dry-run</code> or <code>evals/memory_benchmark.py --dry-run</code>.</div>';
+        return;
+      }
+      el.innerHTML = data.reports.map(rep => {
+        const results = rep.results || [];
+        if (rep.benchmark === 'rag_ablation') {
+          const tableRows = results.map(r => `
+            <tr>
+              <td><strong>${esc(r.config)}</strong></td>
+              <td>${(r.recall_at_5 * 100).toFixed(1)}%</td>
+              <td>${(r.mrr_at_10 * 100).toFixed(1)}%</td>
+              <td>${(r.citation_validity * 100).toFixed(1)}%</td>
+              <td>${(r.abstention_f1 * 100).toFixed(1)}%</td>
+              <td>${(r.false_answer_rate * 100).toFixed(1)}%</td>
+              <td>${esc(r.p95_latency_ms)} ms</td>
+            </tr>
+          `).join('');
+          return `
+            <div class="mem-card">
+              <h3>RAG Ablation — ${esc(rep.filename)} (${esc(rep.mode)})</h3>
+              ${renderSvgBars(results, 'config', 'recall_at_5', '#38bdf8')}
+              <table>
+                <thead><tr><th>Config</th><th>Recall@5</th><th>MRR@10</th><th>Citation Validity</th><th>Abstention F1</th><th>FAR (lower=better)</th><th>P95 ms</th></tr></thead>
+                <tbody>${tableRows}</tbody>
+              </table>
+            </div>
+          `;
+        }
+        if (rep.benchmark === 'memory_benchmark') {
+          const tableRows = results.map(r => `
+            <tr>
+              <td><strong>${esc(r.baseline)}</strong></td>
+              <td>${(r.overall_accuracy * 100).toFixed(1)}%</td>
+              <td>${(r.knowledge_update_accuracy * 100).toFixed(1)}%</td>
+              <td>${(r.token_reduction_pct).toFixed(1)}%</td>
+              <td>${(r.false_invalidation_rate * 100).toFixed(1)}%</td>
+              <td>${esc(r.p95_latency_ms)} ms</td>
+            </tr>
+          `).join('');
+          return `
+            <div class="mem-card">
+              <h3>Memory Benchmark — ${esc(rep.filename)} (${esc(rep.mode)})</h3>
+              ${renderSvgBars(results, 'baseline', 'knowledge_update_accuracy', '#34d399')}
+              <table>
+                <thead><tr><th>Baseline</th><th>Overall Acc</th><th>Knowledge Update Acc</th><th>Prompt Token Reduction</th><th>False Invalidation Rate</th><th>P95 ms</th></tr></thead>
+                <tbody>${tableRows}</tbody>
+              </table>
+            </div>
+          `;
+        }
+        return `<div class="mem-card"><h3>${esc(rep.filename)}</h3><pre>${esc(JSON.stringify(rep, null, 2))}</pre></div>`;
+      }).join('');
+    }
+
+    loadInfo();
+    loadDocs();
+  </script>
+</body>
+</html>

@@ -1,0 +1,51 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  lint-type-unit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          python-version: "3.12"
+      - run: uv sync --extra dev
+      - run: uv run ruff check .
+      - run: uv run mypy src
+      - run: uv run pytest
+      - run: uv run python -m evals.rag_ablation --dry-run
+      - run: uv run python -m evals.memory_benchmark --dry-run
+
+  postgres-integration:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: paradedb/paradedb:latest
+        env:
+          POSTGRES_USER: terracemem
+          POSTGRES_PASSWORD: terracemem
+          POSTGRES_DB: terracemem
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U terracemem -d terracemem"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+    env:
+      TERRACEMEM_DATABASE_URL: postgresql://terracemem:terracemem@localhost:5432/terracemem
+      TERRACEMEM_TEST_DATABASE_URL: postgresql://terracemem:terracemem@localhost:5432/terracemem
+      TERRACEMEM_LEXICAL_BACKEND: paradedb
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          python-version: "3.12"
+      - run: uv sync --extra dev
+      - run: uv run alembic upgrade head
+      - run: uv run pytest tests/test_postgres_integration.py -vv

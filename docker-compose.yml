@@ -1,0 +1,22 @@
+services:
+  postgres:
+    image: paradedb/paradedb:latest
+    container_name: terracemem-postgres
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-terracemem}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-terracemem}
+      POSTGRES_DB: ${POSTGRES_DB:-terracemem}
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - terracemem_pgdata:/var/lib/postgresql/data
+      - ./docker/init-db.sql:/docker-entrypoint-initdb.d/01-init-db.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-terracemem} -d ${POSTGRES_DB:-terracemem}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+
+volumes:
+  terracemem_pgdata:

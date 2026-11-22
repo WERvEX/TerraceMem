@@ -1,0 +1,86 @@
+{
+  "name": "tech_docs_hardset",
+  "description": "30 bilingual engineering benchmark queries covering versioned docs, error codes, tables, multi-section synthesis, 2-hop relations, and unanswerable abstentions.",
+  "documents": [
+    {
+      "external_key": "storage-paradedb",
+      "title": "ParadeDB & pgvector Hybrid Retrieval Spec",
+      "effective_at": "2026-10-01T00:00:00Z",
+      "content": "# ParadeDB & pgvector Hybrid Retrieval Spec\n\n## 1. Sparse BM25 Engine\nTerraceMem uses ParadeDB `pg_search` powered by Rust Tantivy. For Chinese and English mixed corpora, the BM25 index configures the `jieba` tokenizer on `lexical_text` and pushes `tenant_id` and `namespace` down via Fast Fields (`===`).\n\n## 2. Iterative Vector Scan\nDense embeddings use `pgvector 0.8` `halfvec(1024)` with HNSW (`m = 16`, `ef_construction = 128`). During filtered retrieval, TerraceMem runs `SET LOCAL hnsw.iterative_scan = 'relaxed_order'` inside the transaction to prevent post-filtering starvation.\n\n## 3. Native Fallback\nWhen `TERRACEMEM_LEXICAL_BACKEND=native` is enabled on standard PostgreSQL, `doc_chunks.search_tokens` is populated using `jieba.cut_for_search` and queried via `plainto_tsquery('simple', ...)`."
+    },
+    {
+      "external_key": "error-codes-v1",
+      "title": "Gateway Error Reference v1",
+      "effective_at": "2025-01-01T00:00:00Z",
+      "content": "# Gateway Error Reference\n\n## ERR_GATEWAY_42\nLegacy retry interval was 60 seconds with fixed backoff. Deprecated in v2."
+    },
+    {
+      "external_key": "error-codes-v1",
+      "title": "Gateway Error Reference v2",
+      "effective_at": "2026-09-01T00:00:00Z",
+      "content": "# Gateway Error Reference\n\n## ERR_GATEWAY_42\nCurrent retry interval for `ERR_GATEWAY_42` is 5 seconds with exponential jitter (`ERR_GATEWAY_42_JITTER`).\n\n## ERR_AUTH_401\nOccurs when EdDSA JWT clock skew exceeds 30 seconds.\n\n## ERR_QUOTA_429\nRate limiter burst ceiling is 120 requests per minute per `tenant_id`.\n\n| Error Code | HTTP Status | Mitigation |\n| :--- | :--- | :--- |\n| `ERR_GATEWAY_42` | 502 | Retry after 5s with jitter |\n| `ERR_AUTH_401` | 401 | Refresh EdDSA token |\n| `ERR_QUOTA_429` | 429 | Honor `Retry-After` header |"
+    },
+    {
+      "external_key": "memory-bitemporal",
+      "title": "Bi-temporal Three-Tier Memory Design",
+      "effective_at": "2026-10-15T00:00:00Z",
+      "content": "# Bi-temporal Three-Tier Memory Design\n\n## 1. L1 Working Memory\nL1 working memory maintains `pinned_constraints` in `sessions` so critical hard rules are never evicted during `session_compactions` rolling compression.\n\n## 2. L2 Episodic Memory\n`episodic_memories` archives timestamped conversation windows, `key_decisions`, and `entities_mentioned` asynchronously via `PostgresOutboxWorker`.\n\n## 3. L3 Semantic Bi-temporal Axes\nL3 separates valid time (`valid_from`, `valid_to`) from transaction time (`recorded_at`, `invalidated_at`, `superseded_by`). Four deterministic guardrails block hypothetical modalities, confidence below `0.75`, historical backfills (`event_time < valid_from`), and silent overwrites of `is_pinned=true` facts."
+    },
+    {
+      "external_key": "rag-fsm-budgets",
+      "title": "Agentic RAG FSM & Execution Budgets",
+      "effective_at": "2026-10-20T00:00:00Z",
+      "content": "# Agentic RAG FSM & Execution Budgets\n\n## 1. ExecutionBudget Ceilings\nDefault budgets enforce `max_retrieval_retries = 2`, `max_state_transitions = 10`, `max_llm_calls = 5`, and `request_timeout_seconds = 30.0`, while `seen_query_fingerprints` blocks duplicate rewrite loops.\n\n## 2. Two-Level CRAG Gate\nEvidence scoring below `0.15` triggers rewrite or rejection; scores at or above `0.72` bypass the extra LLM judge call (`SUFFICIENT`).\n\n## 3. CitationVerifier\n`CitationVerifier` validates every cited `chunk_id` against the retrieved evidence whitelist and triggers `STRICT_ABSTAIN` if any ID is fabricated."
+    },
+    {
+      "external_key": "outbox-architecture",
+      "title": "Zero-Redis PG Outbox & MCP Transport",
+      "effective_at": "2026-11-01T00:00:00Z",
+      "content": "# Zero-Redis PG Outbox & MCP Transport\n\n## 1. SKIP LOCKED Queue\n`PostgresOutboxWorker` drains `async_jobs` using `FOR UPDATE SKIP LOCKED` and exponential backoff (`5s * 2^attempts`), moving jobs to `dead` after `max_attempts = 3`. `LISTEN/NOTIFY` wakes idle workers immediately.\n\n## 2. MCP SDK v2 Tools\nTerraceMem mounts Streamable HTTP MCP at `/mcp` and exposes six tools: `kb_browse_outline`, `kb_search`, `kb_ask`, `memory_recall`, `memory_commit`, and `memory_timeline`."
+    },
+    {
+      "external_key": "service-topology",
+      "title": "Gateway & AuthCore Topology",
+      "effective_at": "2026-11-05T00:00:00Z",
+      "content": "# Gateway & AuthCore Topology\n\n## 1. Edge Routing\n`ServiceGateway` forwards external requests to `AuthCore` over mTLS.\n\n## 2. Token Validation\n`AuthCore` validates incoming sessions using `EdDSAJWT` with a 15-minute access token lifetime."
+    },
+    {
+      "external_key": "chinese-guide",
+      "title": "TerraceMem 中文部署与双时态指南",
+      "effective_at": "2026-11-10T00:00:00Z",
+      "content": "# TerraceMem 中文部署与双时态指南\n\n## 1. 统一数据库底座\nTerraceMem 使用单一 PostgreSQL 统一底座承载文档树、向量检索和双时态记忆，彻底移除 Redis 与外部图数据库。\n\n## 2. 写时精炼增强\n开启 `ENABLE_WRITE_TIME_ENRICHMENT=true` 时，入库管线会自动提炼章节摘要和同义关键词写入 `enriched_keywords`，并合并到生成列 `lexical_text` 中增强 BM25 字面召回。"
+    }
+  ],
+  "queries": [
+    {"id": "q01", "category": "exact_code", "question": "What is the current retry interval for ERR_GATEWAY_42?", "answerable": true, "expected_terms": ["5 seconds", "jitter"], "relevant_external_keys": ["error-codes-v1"]},
+    {"id": "q02", "category": "version_check", "question": "What HTTP status corresponds to ERR_QUOTA_429 and what is the burst ceiling?", "answerable": true, "expected_terms": ["429", "120"], "relevant_external_keys": ["error-codes-v1"]},
+    {"id": "q03", "category": "exact_code", "question": "What causes ERR_AUTH_401?", "answerable": true, "expected_terms": ["30 seconds", "EdDSA"], "relevant_external_keys": ["error-codes-v1"]},
+    {"id": "q04", "category": "storage", "question": "Which tokenizer does ParadeDB pg_search configure on lexical_text?", "answerable": true, "expected_terms": ["jieba"], "relevant_external_keys": ["storage-paradedb"]},
+    {"id": "q05", "category": "storage", "question": "Which SQL setting prevents HNSW post-filtering starvation in pgvector 0.8?", "answerable": true, "expected_terms": ["iterative_scan", "relaxed_order"], "relevant_external_keys": ["storage-paradedb"]},
+    {"id": "q06", "category": "storage", "question": "What HNSW parameters and vector type are used for dense embeddings?", "answerable": true, "expected_terms": ["halfvec", "16", "128"], "relevant_external_keys": ["storage-paradedb"]},
+    {"id": "q07", "category": "storage", "question": "How does native fallback mode query doc_chunks.search_tokens?", "answerable": true, "expected_terms": ["plainto_tsquery", "simple"], "relevant_external_keys": ["storage-paradedb"]},
+    {"id": "q08", "category": "memory", "question": "Which columns separate valid time from transaction time in L3 semantic memories?", "answerable": true, "expected_terms": ["valid_from", "valid_to", "recorded_at", "superseded_by"], "relevant_external_keys": ["memory-bitemporal"]},
+    {"id": "q09", "category": "memory", "question": "What minimum confidence threshold do L3 guardrails enforce?", "answerable": true, "expected_terms": ["0.75"], "relevant_external_keys": ["memory-bitemporal"]},
+    {"id": "q10", "category": "memory", "question": "How does L1 working memory avoid evicting critical rules during compaction?", "answerable": true, "expected_terms": ["pinned_constraints"], "relevant_external_keys": ["memory-bitemporal"]},
+    {"id": "q11", "category": "fsm", "question": "What are the default ExecutionBudget limits for retries, state transitions, and LLM calls?", "answerable": true, "expected_terms": ["2", "10", "5"], "relevant_external_keys": ["rag-fsm-budgets"]},
+    {"id": "q12", "category": "fsm", "question": "At what score thresholds does the two-level CRAG gate reject or bypass LLM checks?", "answerable": true, "expected_terms": ["0.15", "0.72"], "relevant_external_keys": ["rag-fsm-budgets"]},
+    {"id": "q13", "category": "fsm", "question": "What does CitationVerifier do when an answer cites a fabricated chunk_id?", "answerable": true, "expected_terms": ["STRICT_ABSTAIN", "whitelist"], "relevant_external_keys": ["rag-fsm-budgets"]},
+    {"id": "q14", "category": "outbox", "question": "How does PostgresOutboxWorker claim async_jobs and handle max_attempts exhaustion?", "answerable": true, "expected_terms": ["FOR UPDATE SKIP LOCKED", "dead"], "relevant_external_keys": ["outbox-architecture"]},
+    {"id": "q15", "category": "mcp", "question": "Which six MCP tools does TerraceMem expose at /mcp?", "answerable": true, "expected_terms": ["kb_browse_outline", "kb_ask", "memory_timeline"], "relevant_external_keys": ["outbox-architecture"]},
+    {"id": "q16", "category": "multihop", "question": "Which token protocol and access lifetime does AuthCore validate for ServiceGateway requests?", "answerable": true, "expected_terms": ["EdDSAJWT", "15-minute"], "relevant_external_keys": ["service-topology"]},
+    {"id": "q17", "category": "chinese", "question": "TerraceMem 使用什么数据库承载文档树、向量检索和双时态记忆？", "answerable": true, "expected_terms": ["PostgreSQL"], "relevant_external_keys": ["chinese-guide"]},
+    {"id": "q18", "category": "chinese", "question": "开启 ENABLE_WRITE_TIME_ENRICHMENT 后关键词会写入哪一列增强 BM25 召回？", "answerable": true, "expected_terms": ["enriched_keywords", "lexical_text"], "relevant_external_keys": ["chinese-guide"]},
+    {"id": "q19", "category": "storage", "question": "What Fast Fields predicates does ParadeDB push down on lexical queries?", "answerable": true, "expected_terms": ["tenant_id", "namespace"], "relevant_external_keys": ["storage-paradedb"]},
+    {"id": "q20", "category": "outbox", "question": "What backoff formula does async_jobs retry scheduling use?", "answerable": true, "expected_terms": ["5s", "2^attempts"], "relevant_external_keys": ["outbox-architecture"]},
+    {"id": "q21", "category": "unanswerable", "question": "What is TerraceMem's default Kubernetes Helm chart replica count for Redis Sentinel?", "answerable": false, "expected_terms": [], "relevant_external_keys": []},
+    {"id": "q22", "category": "unanswerable", "question": "Which Neo4j Cypher version does TerraceMem require for 4-hop traversal?", "answerable": false, "expected_terms": [], "relevant_external_keys": []},
+    {"id": "q23", "category": "unanswerable", "question": "What is the pricing tier in USD per million tokens for TerraceMem Cloud Enterprise?", "answerable": false, "expected_terms": [], "relevant_external_keys": []},
+    {"id": "q24", "category": "unanswerable", "question": "How do you configure Kafka consumer group offsets inside TerraceMem?", "answerable": false, "expected_terms": [], "relevant_external_keys": []},
+    {"id": "q25", "category": "unanswerable", "question": "What is the exact GPU CUDA kernel flag for Qdrant quantization in TerraceMem?", "answerable": false, "expected_terms": [], "relevant_external_keys": []},
+    {"id": "q26", "category": "unanswerable", "question": "Which S3 Glacier archival tier holds TerraceMem cold partitions after 90 days?", "answerable": false, "expected_terms": [], "relevant_external_keys": []},
+    {"id": "q27", "category": "unanswerable", "question": "TerraceMem 的 Elasticsearch 集群分片数量默认是多少？", "answerable": false, "expected_terms": [], "relevant_external_keys": []},
+    {"id": "q28", "category": "unanswerable", "question": "What GraphQL subscription port does TerraceMem bind on startup?", "answerable": false, "expected_terms": [], "relevant_external_keys": []},
+    {"id": "q29", "category": "unanswerable", "question": "How do I enable MongoDB Atlas Vector Search inside TerraceMem?", "answerable": false, "expected_terms": [], "relevant_external_keys": []},
+    {"id": "q30", "category": "unanswerable", "question": "What Windows Registry key stores TerraceMem license activation certificates?", "answerable": false, "expected_terms": [], "relevant_external_keys": []}
+  ]
+}
